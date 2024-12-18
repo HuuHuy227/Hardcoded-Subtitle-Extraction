@@ -112,7 +112,6 @@ class TextOcr(object):
         # start = time.time()
         ori_im = img.copy()
         dt_boxes, elapse = self.text_detector(img)
-        print(len(dt_boxes))
         # Filter boxes for center-bottom subtitles
         dt_boxes = sorted_boxes(dt_boxes)
         dt_boxes = filter_center_bottom_bboxes(dt_boxes, h, w)   
@@ -124,10 +123,10 @@ class TextOcr(object):
             # end = time.time()
             # time_dict["all"] = end - start
             return None, None #, time_dict
-        else:
-            logger.debug(
-                "dt_boxes num : {}, elapsed : {}".format(len(dt_boxes), elapse)
-            )
+        # else:
+        #     logger.debug(
+        #         "dt_boxes num : {}, elapsed : {}".format(len(dt_boxes), elapse)
+        #     )
         img_crop_list = []
 
         for bno in range(len(dt_boxes)):
@@ -164,7 +163,7 @@ if __name__ == "__main__":
     args.det_model_dir = "weights/det"
     args.rec_model_dir = "weights/rec"
     args.rec_char_dict_path = "weights/rec/en_dict.txt"
-    # args.rec_char_dict_path
+
     # args.page_num = 1
     args.warmup = True
     # print(args)

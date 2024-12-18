@@ -25,3 +25,5 @@ scores = [line[1] for line in result[1]]
 im_show = draw_ocr(image, boxes, txts, scores, font_path='C:/Subtitle-Extraction/simfang.ttf')
 im_show = Image.fromarray(im_show)
 im_show.save('result.jpg')
+
+

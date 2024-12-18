@@ -1,145 +1,148 @@
-import os
-import tempfile
-import subprocess
-import difflib
 import cv2
+import numpy as np
+import difflib
+import os
 
-from text_ocr import TextOcr
+from typing import List, Optional, Dict, Generator
 from utils import init_args
+from text_ocr import TextOcr
 
-class SubtitleExtractor:
-    def __init__(self, max_frames_in_memory: int = 100):
+class VideoSubtitleExtractor:
+    def __init__(self, max_concurrent_frames: int = None):
         """
-        Initialize SubtitleExtractor
+        Initialize video subtitle extractor with memory-efficient processing
         
-        :param max_frames_in_memory: Maximum number of frames to keep in memory at once
+        :param max_concurrent_frames: Maximum number of frames to process concurrently
         """
-        # Initialize PaddleOCR arguments
+        self.max_concurrent_frames = max_concurrent_frames or (os.cpu_count() or 4)
+        
         self.args = init_args()
         self.args.warmup = True
         
-        # Initialize OCR system
         self.text_sys = TextOcr(self.args)
-        
-        # Track previous subtitles for quality comparison
         self.previous_subtitles = []
-        
-        # Temporary directory for frame management
-        self.temp_dir = tempfile.mkdtemp(prefix='video_subtitles_')
-        
-        # Maximum frames to keep in memory
-        self.max_frames_in_memory = max_frames_in_memory
 
-    def check_ffmpeg_availability(self) -> bool:
+    def extract_subtitles(self, video_path: str, frame_rate: int = 1, 
+                           confidence_threshold: float = 0.5, 
+                           subtitle_disappear_threshold: int = 10,  # Increased threshold
+                           progress_bar=None) -> List[Dict]:
         """
-        Check if FFmpeg is available in the system
-        """
-        try:
-            subprocess.run(['ffmpeg', '-version'], 
-                           stdout=subprocess.PIPE, 
-                           stderr=subprocess.PIPE, 
-                           check=True)
-            return True
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            return False
-
-    def extract_frames(self, video_path: str, frame_rate: int = 1):
-        """
-        Extract frames from video with memory-efficient approach
+        Extract subtitles from video with precise timing and memory efficiency
         
-        :param video_path: Path to the input video file
-        :param frame_rate: Number of frames to extract per second
-        :return: Generator of frame arrays
+        :param video_path: Path to the video file
+        :param frame_rate: Number of frames to skip between each processed frame
+        :param confidence_threshold: Minimum confidence for subtitle recognition
+        :param subtitle_disappear_threshold: Number of consecutive frames without subtitle
+        :param progress_bar: Streamlit progress bar object
+        :return: List of extracted subtitles with precise timestamps
         """
-        # Use FFmpeg if available, otherwise fallback to OpenCV
-        extractor = (
-            self._extract_frames_with_ffmpeg 
-            if self.check_ffmpeg_availability() 
-            else self._extract_frames_with_opencv
-        )
-        
-        yield from extractor(video_path, frame_rate)
-
-    def _extract_frames_with_ffmpeg(self, video_path: str, frame_rate: int = 1):
-        """
-        Extract frames using FFmpeg
-        
-        :param video_path: Path to the input video file
-        :param frame_rate: Number of frames to extract per second
-        :return: Generator of frame arrays
-        """
-        try:
-            # Construct output pattern for frames
-            output_pattern = os.path.join(self.temp_dir, 'frame_%05d.jpg')
-            
-            # FFmpeg command to extract frames
-            subprocess.run([
-                'ffmpeg', 
-                '-i', video_path, 
-                '-vf', f'fps={frame_rate}', 
-                '-q:v', '2', 
-                output_pattern
-            ], check=True)
-            
-            # Sort and yield frames
-            frame_files = sorted([
-                os.path.join(self.temp_dir, f) 
-                for f in os.listdir(self.temp_dir) 
-                if f.startswith('frame_') and f.endswith('.jpg')
-            ])
-            
-            for frame_path in frame_files:
-                frame = cv2.imread(frame_path)
-                yield frame
-                
-                # Remove frame file after yielding to save disk space
-                os.remove(frame_path)
-        
-        except Exception as e:
-            print(f"FFmpeg frame extraction error: {e}")
-
-    def _extract_frames_with_opencv(self, video_path: str, frame_rate: int = 1):
-        """
-        Extract frames using OpenCV
-        
-        :param video_path: Path to the input video file
-        :param frame_rate: Number of frames to extract per second
-        :return: Generator of frame arrays
-        """
+        # Open video capture
         cap = cv2.VideoCapture(video_path)
-        frame_count = 0
-
-        while True:
-            success, frame = cap.read()
-            if not success:
-                break
-
-            if frame_count % frame_rate == 0:
-                yield frame
-
-            frame_count += 1
-
-        cap.release()
-
-    def get_video_metadata(self, video_path: str):
-        """
-        Get video metadata
         
-        :param video_path: Path to the input video file
-        :return: Dictionary with video metadata or None
-        """
+        # Get video properties
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        
+        # Calculate frame skip
+        frame_skip = max(1, int(fps // frame_rate))
+        
+        # Subtitle tracking variables
+        subtitles = []
+        current_subtitle = None
+        frames_without_subtitle = 0
+        frame_count = 0
+        last_subtitle_frame = -1
+        last_valid_subtitle_frame = -1
+
         try:
-            cap = cv2.VideoCapture(video_path)
-            return {
-                'fps': cap.get(cv2.CAP_PROP_FPS),
-                'total_frames': int(cap.get(cv2.CAP_PROP_FRAME_COUNT)),
-                'duration': cap.get(cv2.CAP_PROP_FRAME_COUNT) / cap.get(cv2.CAP_PROP_FPS)
-            }
-        except Exception as e:
-            print(f"Error getting video metadata: {e}")
-            return None
+            while True:
+                # Read frame
+                success, frame = cap.read()
+                
+                # Break if no more frames
+                if not success:
+                    break
+                
+                # Process frame at specified rate
+                if frame_count % frame_skip == 0:
+                    # Perform OCR
+                    _, rec_res = self.text_sys(frame)
+                    
+                    if rec_res:
+                        # Filter subtitles by confidence and non-emptiness
+                        frame_subtitles = [
+                            (res[0], res[1])  # (text, confidence)
+                            for res in rec_res 
+                            if res[0].strip() and res[1] >= confidence_threshold
+                        ]
+                        
+                        if frame_subtitles:
+                            # Select best subtitle (highest confidence, then longest)
+                            best_subtitle = max(frame_subtitles, key=lambda x: (x[1], len(x[0])))[0]
+                            
+                            # Check subtitle uniqueness
+                            is_unique = all(
+                                self._compute_similarity(best_subtitle, prev) < 0.8 
+                                for prev in self.previous_subtitles
+                            )
+                            
+                            if is_unique:
+                                # Close previous subtitle if exists
+                                if current_subtitle:
+                                    current_subtitle['end_time'] = self._format_timestamp(
+                                        last_valid_subtitle_frame / fps
+                                    )
+                                    subtitles.append(current_subtitle)
+                                
+                                # Start new subtitle
+                                current_subtitle = {
+                                    'start_time': self._format_timestamp(frame_count / fps),
+                                    'end_time': None,
+                                    'text': best_subtitle
+                                }
+                                
+                                frames_without_subtitle = 0
+                                last_subtitle_frame = frame_count
+                                last_valid_subtitle_frame = frame_count
+                                self.previous_subtitles.append(best_subtitle)
+                            
+                            # Update last valid subtitle frame
+                            last_valid_subtitle_frame = frame_count
+                            frames_without_subtitle = 0
+                                
+                    else:
+                        frames_without_subtitle += 1
+                    
+                    # Check if subtitle should be considered disappeared
+                    if current_subtitle and frames_without_subtitle >= subtitle_disappear_threshold:
+                        # Use the last frame where subtitle was definitely visible
+                        current_subtitle['end_time'] = self._format_timestamp(
+                            last_valid_subtitle_frame / fps
+                        )
+                        subtitles.append(current_subtitle)
+                        current_subtitle = None
+                
+                # Update progress bar
+                if progress_bar and frame_count % max(1, total_frames // 100) == 0:
+                    progress_bar.progress(int(frame_count / total_frames * 100))
+                
+                frame_count += 1
+                
+                # Stop if all frames processed
+                if frame_count >= total_frames:
+                    break
+            
+            # Handle last subtitle if exists
+            if current_subtitle:
+                current_subtitle['end_time'] = self._format_timestamp(
+                    last_valid_subtitle_frame / fps
+                )
+                subtitles.append(current_subtitle)
+        
         finally:
-            cap.release() if 'cap' in locals() else None
+            cap.release()
+        
+        return subtitles
 
     def _compute_similarity(self, str1: str, str2: str) -> float:
         """
@@ -156,109 +159,6 @@ class SubtitleExtractor:
         # Use SequenceMatcher to compute similarity
         return difflib.SequenceMatcher(None, clean_str1, clean_str2).ratio()
 
-    def _select_best_subtitle(self, subtitles: list) -> str:
-        """
-        Select the best subtitle based on multiple criteria
-        
-        :param subtitles: List of subtitle candidates with recognition results
-        :return: Best subtitle
-        """
-        if not subtitles:
-            return ""
-        
-        # If subtitles are tuples of (text, confidence), extract text with highest confidence
-        if isinstance(subtitles[0], tuple):
-            # Sort subtitles by:
-            # 1. Confidence score (descending)
-            # 2. Length of subtitle text (descending)
-            def subtitle_score(subtitle):
-                text, confidence = subtitle
-                return (
-                    confidence,  # Primary sorting by confidence
-                    len(text.strip()),  # Secondary sorting by text length
-                    -len(text.replace(' ', ''))  # Tertiary sorting to prefer more substantive text
-                )
-            
-            # Get the best subtitle
-            best_subtitle_tuple = max(subtitles, key=subtitle_score)
-            return best_subtitle_tuple[0]
-        
-        # If subtitles are just strings, fall back to previous logic
-        # Prioritize longer subtitles
-        best_subtitle = max(subtitles, key=len)
-        
-        # Remove duplicates with high similarity
-        filtered_subtitles = []
-        for subtitle in subtitles:
-            is_unique = all(
-                self._compute_similarity(subtitle, prev) < 0.8 
-                for prev in filtered_subtitles
-            )
-            if is_unique:
-                filtered_subtitles.append(subtitle)
-        
-        return max(filtered_subtitles, key=len) if filtered_subtitles else best_subtitle
-
-    def extract_subtitles(self, video_path: str, frame_rate: int = 1) -> list:
-        """
-        Extract subtitles from video
-        
-        :param video_path: Path to the video file
-        :param frame_rate: Number of frames to skip between each processed frame
-        :return: List of extracted subtitles with timestamps
-        """
-        # Get video metadata
-        metadata = self.get_video_metadata(video_path)
-        fps = metadata['fps'] if metadata else 1
-        
-        subtitles = []
-
-        for idx, frame in enumerate(self.extract_frames(video_path, frame_rate)):
-            # Process frame
-            _, rec_res = self.text_sys(frame)
-            
-            if rec_res:
-                # Extract unique, non-empty subtitles with their confidence scores
-                current_frame_subtitles = [
-                    (res[0], res[1])  # (text, confidence)
-                    for res in rec_res 
-                    if res[0].strip()  # Non-empty text
-                ]
-                
-                # If we have subtitles in this frame
-                if current_frame_subtitles:
-                    # Select the best subtitle
-                    best_subtitle = self._select_best_subtitle(current_frame_subtitles)
-                    
-                    # Calculate timestamp
-                    current_time = (idx * frame_rate) / fps
-                    start_time = self._format_timestamp(current_time)
-                    end_time = self._format_timestamp(current_time + 3)  # Assume 3-second duration
-                    
-                    # Add subtitle if it's sufficiently different from previous ones
-                    if best_subtitle and not self._is_too_similar(best_subtitle):
-                        subtitles.append({
-                            'start_time': start_time,
-                            'end_time': end_time,
-                            'text': best_subtitle
-                        })
-                        self.previous_subtitles.append(best_subtitle)
-
-        return subtitles
-
-    def _is_too_similar(self, subtitle: str, similarity_threshold: float = 0.8) -> bool:
-        """
-        Check if the subtitle is too similar to previous subtitles
-        
-        :param subtitle: Current subtitle
-        :param similarity_threshold: Similarity threshold
-        :return: True if too similar, False otherwise
-        """
-        for prev_subtitle in self.previous_subtitles:
-            if self._compute_similarity(subtitle, prev_subtitle) > similarity_threshold:
-                return True
-        return False
-
     def _format_timestamp(self, seconds: float) -> str:
         """
         Convert seconds to SRT timestamp format
@@ -270,19 +170,26 @@ class SubtitleExtractor:
         
         return f"{hours:02d}:{minutes:02d}:{int(secs):02d},{millisecs:03d}"
 
-    def cleanup(self):
+    def get_video_metadata(self, video_path: str) -> Optional[dict]:
         """
-        Clean up temporary directory
+        Get video metadata efficiently
+        
+        :param video_path: Path to the input video file
+        :return: Dictionary with video metadata or None
         """
         try:
-            import shutil
-            shutil.rmtree(self.temp_dir)
+            cap = cv2.VideoCapture(video_path)
+            
+            metadata = {
+                'fps': cap.get(cv2.CAP_PROP_FPS),
+                'total_frames': int(cap.get(cv2.CAP_PROP_FRAME_COUNT)),
+                'width': int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)),
+                'height': int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)),
+                'duration': cap.get(cv2.CAP_PROP_FRAME_COUNT) / cap.get(cv2.CAP_PROP_FPS)
+            }
+            
+            return metadata
         except Exception as e:
-            print(f"Error cleaning up temporary directory: {e}")
-
-    def __del__(self):
-        """
-        Ensure cleanup when object is garbage collected
-        """
-        self.cleanup()
-
+            return None
+        finally:
+            cap.release()
