@@ -3,17 +3,17 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: subtitle-extractor:gpu
+    image: subtitle-extractor:latest
     command: 
       - streamlit
       - run
       - main.py
     ports:
-      - "8501:8501"
+      - "8000:8000"
     volumes:
       # Mount video input directory
       - C:/video:/app/videos
     environment:
       # Optional: Set default video and subtitle directories
       - VIDEO_INPUT_DIR=/app/videos
-    runtime: nvidia  # Add this line
+    runtime: nvidia
