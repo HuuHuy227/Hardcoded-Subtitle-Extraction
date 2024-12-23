@@ -2,6 +2,7 @@ import paddleocr.tools.infer.utility as utility
 import numpy as np
 from typing import Dict, Tuple
 import os
+import paddle
 
 SUPPORTED_LANGUAGES: Dict[str, str] = {
     'en': 'English',
@@ -10,6 +11,14 @@ SUPPORTED_LANGUAGES: Dict[str, str] = {
     'ko': 'Korean',
     'ar': 'Arabic',
 }
+
+def check_gpu_availability() -> bool:
+    """Check if GPU is available for PaddlePaddle"""
+    try:
+        return paddle.device.is_compiled_with_cuda()
+    except:
+        return False
+    
 
 def get_language_paths(lang: str) -> Tuple[str, str]:
     """

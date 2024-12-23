@@ -4,7 +4,7 @@ from tkinter import ttk, filedialog, messagebox
 from core.subtitle_extractor import VideoSubtitleExtractor
 import time
 from ttkthemes import ThemedTk
-from utils import SUPPORTED_LANGUAGES
+from utils import SUPPORTED_LANGUAGES, check_gpu_availability
 
 class SubtitleExtractorApp:
     def __init__(self):
@@ -23,6 +23,8 @@ class SubtitleExtractorApp:
         self.is_processing_complete = False
         self.MAX_DISPLAY_SUBTITLES = 50  # Maximum number of subtitles to display
         self.save_button = None  # Add this line to store save button reference
+        self.selected_lang = "en"  # Default language
+        self.is_gpu_available = check_gpu_availability()
 
         self.setup_ui()
 
@@ -113,6 +115,13 @@ class SubtitleExtractorApp:
         self.lang_dropdown.pack(side=tk.LEFT, padx=5)
         self.lang_dropdown.bind('<<ComboboxSelected>>', self.on_lang_change)        
 
+        # Add GPU status indicator in settings frame
+        gpu_frame = ttk.Frame(self.frame_settings)
+        gpu_frame.pack(fill=tk.X, pady=5)
+        
+        gpu_status = "✅ GPU Available" if self.is_gpu_available else "❌ GPU Not Available."
+        ttk.Label(gpu_frame, text="GPU Status:").pack(side=tk.LEFT)
+        ttk.Label(gpu_frame, text=gpu_status).pack(side=tk.LEFT, padx=5)
 
         # Progress frame
         self.frame_progress = ttk.LabelFrame(main_frame, text="Progress", padding="10")
@@ -242,7 +251,10 @@ class SubtitleExtractorApp:
         frame_rate = self.scale_frame_rate.get()
         confidence_threshold = self.scale_confidence.get()
 
-        extractor = VideoSubtitleExtractor(lang=self.selected_lang)
+        extractor = VideoSubtitleExtractor(
+            lang=self.selected_lang,
+            use_gpu=self.is_gpu_available
+        )
         start_time = time.time()
 
         try:

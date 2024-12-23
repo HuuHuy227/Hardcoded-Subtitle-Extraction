@@ -16,4 +16,4 @@ services:
     environment:
       # Optional: Set default video and subtitle directories
       - VIDEO_INPUT_DIR=/app/videos
-    runtime: nvidia
+    # runtime: nvidia # Optional: Uncomment to use NVIDIA GPU for video processing

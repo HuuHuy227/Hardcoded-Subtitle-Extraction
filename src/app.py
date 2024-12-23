@@ -1,11 +1,15 @@
 import os
 import streamlit as st
 from core.subtitle_extractor import VideoSubtitleExtractor
-from utils import SUPPORTED_LANGUAGES
+from utils import SUPPORTED_LANGUAGES, check_gpu_availability
 import time
 
 def main():
     st.title("🎬 Video Hardcoded Subtitle Extractor")
+
+    # Check GPU availability
+    is_gpu_available = check_gpu_availability()
+    st.sidebar.info(f"GPU Support: {'Available ✅' if is_gpu_available else 'Not Available ❌.'}")
 
     # Use environment variables or default paths
     VIDEO_INPUT_DIR = os.environ.get('VIDEO_INPUT_DIR', 'C:/video')
@@ -78,7 +82,7 @@ def main():
             return
         
         # Create extractor with specified max concurrent frames
-        extractor = VideoSubtitleExtractor(lang=lang_code, use_gpu=True)
+        extractor = VideoSubtitleExtractor(lang=lang_code, use_gpu=is_gpu_available)
 
         # Get video metadata
         metadata = extractor.get_video_metadata(video_path)
