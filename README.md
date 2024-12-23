@@ -54,3 +54,47 @@ pip install -r requirements.txt
 
 # For GPU support (optional)
 conda install paddlepaddle-gpu==2.6.1
+
+### Option 3: Docker
+### CPU Version
+
+```bash
+# Build and run
+docker-compose build
+docker-compose up
+
+### GPU Version
+```bash
+# Install NVIDIA Container Toolkit first
+# Then build and run with GPU support
+docker-compose -f docker-compose.yml build
+docker-compose -f docker-compose.yml up
+
+### 🚀 Usage
+### Desktop Application
+```bash
+# Launch GUI
+python gui.py
+
+### Web Interface
+```bash
+# Launch web app
+streamlit run app.py
+
+## ⚙️ Configuration
+### Docker Volume Mounting
+Mount your video directory in docker-compose.yml:
+```bash
+volumes:
+  - C:/your/video/path:/app/videos
+
+Environment Variables
+```bash
+VIDEO_INPUT_DIR=/path/to/videos  # Default video directory
+
+### 🤝 Contributing
+- Fork the repository
+- Create a feature branch
+- Commit changes
+- Push to branch
+- Create pull request
