@@ -53,5 +53,7 @@ python gui.py
 streamlit run app.py
 ```
 ![Alt Text](https://i.giphy.com/media/v1.Y2lkPTc5MGI3NjExbTk2NWpnbXI5MWV6ZzVoYmIwODZpdzNtZnVybHF1N2JrempybjY1dCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3Y1bedk8LoZkPi18OK/giphy.gif)
+
+[Link Demo](https://www.youtube.com/watch?v=2ZxI7lb3C2I)
 ### 🤝 Credits
 - PaddleOCR
