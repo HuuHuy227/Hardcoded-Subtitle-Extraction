@@ -46,11 +46,12 @@ docker-compose -f docker-compose.yml up
 # Launch GUI
 python gui.py
 ```
+![Alt Text](https://i.giphy.com/media/v1.Y2lkPTc5MGI3NjExcGJ0ejlkbXY2OGxkOXY0azlwZ2ttOHMxbnB4eDVsdDRlbTBmbmk0bCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/Mk4QxIiNl1V2lx9afi/giphy.gif)
 ### Web Interface
 ```bash
 # Launch web app
 streamlit run app.py
 ```
-
+![Alt Text](https://i.giphy.com/media/v1.Y2lkPTc5MGI3NjExbTk2NWpnbXI5MWV6ZzVoYmIwODZpdzNtZnVybHF1N2JrempybjY1dCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3Y1bedk8LoZkPi18OK/giphy.gif)
 ### 🤝 Credits
 - PaddleOCR
