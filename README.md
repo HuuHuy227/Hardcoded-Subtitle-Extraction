@@ -2,6 +2,7 @@
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 Extract hardcoded/burned-in subtitles from videos using OCR technology. Available as both a desktop application and web interface.
+This implementation using [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR) for backend OCR task.
 
 ## 🎯 Features
 - GUI and web interface options
@@ -21,7 +22,7 @@ Extract hardcoded/burned-in subtitles from videos using OCR technology. Availabl
 ## 📥 Installation
 
 ### Option 1: Conda Environment 
-
+For GPU version you should install CUDA and cuDNN (version base on their [Install paddlepaddle](https://www.paddlepaddle.org.cn/en/install/quick?docurl=/documentation/docs/en/install/pip/windows-pip_en.html))
 ```bash
 # Create conda environment
 conda create -n subtitle-env python=3.10
@@ -55,5 +56,3 @@ streamlit run app.py
 ![Alt Text](https://i.giphy.com/media/v1.Y2lkPTc5MGI3NjExbTk2NWpnbXI5MWV6ZzVoYmIwODZpdzNtZnVybHF1N2JrempybjY1dCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3Y1bedk8LoZkPi18OK/giphy.gif)
 
 [Link Demo](https://www.youtube.com/watch?v=2ZxI7lb3C2I)
-### 🤝 Credits
-- PaddleOCR
